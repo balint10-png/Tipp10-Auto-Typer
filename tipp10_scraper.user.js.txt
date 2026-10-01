@@ -1,0 +1,54 @@
+// ==UserScript==
+// @name         Tipp10 Auto-Clipboard Scraper (Timer Version)
+// @namespace    tipp10.devtool
+// @version      1.2
+// @description  Liest den Ticker von Tipp10 aus und kopiert ihn robust in die Zwischenablage
+// @match        *://*/*
+// @grant        GM_setClipboard
+// @run-at       document-idle
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  let lastCopiedText = '';
+
+  function getRemainingText() {
+    const selectionDiv = document.getElementById('selection');
+    const nextDiv = document.getElementById('next');
+
+    let text = '';
+    if (selectionDiv) text += selectionDiv.textContent;
+    if (nextDiv) text += nextDiv.textContent;
+
+    // Ersetzt Tipp10-Enter-Symbole durch echte Zeilenumbrüche
+    text = text.replace(/↵/g, '\n').replace(/\u21B5/g, '\n');
+    text = text.replace(/\u00A0/g, ' ');
+
+    return text;
+  }
+
+  function syncToClipboard() {
+    const currentText = getRemainingText();
+    if (!currentText) return;
+
+    // Kopiert nur, wenn es wirklich ein NEUER Text ist (z.B. neue Zeile)
+    if (lastCopiedText === '' || !lastCopiedText.endsWith(currentText)) {
+      lastCopiedText = currentText;
+      GM_setClipboard(currentText);
+      console.log('[Tipp10 Scraper] Text kopiert:', currentText);
+    }
+  }
+
+  // Überprüft alle 50ms das Textfeld, was Resets (wie bei Zeilenumbrüchen) fehlerfrei übersteht
+  setInterval(syncToClipboard, 50);
+
+  // Manueller Notfall-Sync per Alt + C
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key.toLowerCase() === 'c') {
+      lastCopiedText = '';
+      syncToClipboard();
+    }
+  });
+
+})();

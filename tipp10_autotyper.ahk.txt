@@ -1,0 +1,88 @@
+#Requires AutoHotkey v2.0
+
+global ErrorRate := 0.5 ; Fehlerquote in % (Kommazahlen erlaubt, z.B. 0.5 oder 1.2)
+
+global currentText := ""
+global lastClipboard := ""
+global textIndex := 1
+global Alphabet := "abcdefghijklmnopqrstuvwxyz"
+global ih := InputHook()
+
+ih.KeyOpt("{All}", "N S")
+ih.KeyOpt("{F2}{Esc}", "-S -N")
+ih.OnKeyDown := OnAnyKeyPress
+
+F2:: {
+    global ih, currentText, lastClipboard, textIndex
+    if (ih.InProgress) {
+        StopBot("Manueller Modus DEAKTIVIERT")
+    } else {
+        ; \r entfernen, um doppelte Enter-Eingaben am Zeilenanfang zu verhindern
+        currentText := StrReplace(A_Clipboard, "`r", "")
+        lastClipboard := currentText
+        textIndex := 1
+        
+        if (currentText == "") {
+            ShowStatus("Fehler: Zwischenablage ist leer! Lade Tipp10 neu oder drücke Alt+C.")
+            return
+        }
+        ih.Start()
+        ShowStatus("AKTIVIERT! Tippe auf der Tastatur! (F2/ESC = Aus)")
+    }
+}
+
+~Esc:: {
+    if (ih.InProgress) {
+        StopBot("Notfall-Stopp!")
+    }
+}
+
+StopBot(msg) {
+    global ih
+    if (ih.InProgress) {
+        ih.Stop()
+    }
+    ShowStatus(msg)
+}
+
+ShowStatus(msg) {
+    ToolTip msg
+    SetTimer () => ToolTip(), -2500
+}
+
+OnAnyKeyPress(ihObj, VK, SC) {
+    global currentText, lastClipboard, textIndex, ErrorRate, Alphabet
+    
+    currentText := StrReplace(A_Clipboard, "`r", "")
+    
+    ; Reset auf Index 1, wenn Tampermonkey eine neue Zeile geliefert hat
+    if (currentText != lastClipboard) {
+        lastClipboard := currentText
+        textIndex := 1
+    }
+    
+    if (textIndex > StrLen(currentText)) {
+        return ; Warte, bis neues Text-Update in der Zwischenablage ankommt
+    }
+
+    currentChar := SubStr(currentText, textIndex, 1)
+    ihObj.Stop()
+
+    ; --- FEHLER-SIMULATION ---
+    if (ErrorRate > 0 && RegExMatch(currentChar, "[a-zA-Z]") && Random(0.0, 100.0) <= ErrorRate) {
+        wrongChar := SubStr(Alphabet, Random(1, StrLen(Alphabet)), 1)
+        SendText wrongChar
+        Sleep Random(100, 180)
+    }
+
+    ; --- RICHTIGES ZEICHEN TIPPEN ---
+    if (currentChar == "`n") {
+        Send "{Enter}"
+        Sleep 250 ; Gibt Tipp10 Zeit, die neue HTML-Struktur zu laden
+    } else {
+        SendText currentChar
+    }
+    
+    textIndex++
+    ihObj.Start()
+}
